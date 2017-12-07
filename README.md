@@ -1,3 +1,7 @@
+# Add support for MobileNet
+
+implement depth-wise convolution layer by gemmStridedBatched function in CUDA 8.0
+
 # SSD: Single Shot MultiBox Detector
 
 [![Build Status](https://travis-ci.org/weiliu89/caffe.svg?branch=ssd)](https://travis-ci.org/weiliu89/caffe)

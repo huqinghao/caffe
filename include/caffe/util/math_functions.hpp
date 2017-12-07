@@ -15,6 +15,11 @@ namespace caffe {
 // Caffe gemm provides a simpler interface to the gemm functions, with the
 // limitation that the data has to be contiguous in memory.
 template <typename Dtype>
+void caffe_gpu_gemm_strided_batched(const CBLAS_TRANSPOSE TransA,
+    const CBLAS_TRANSPOSE TransB, const int M, const int N, const int K,
+     const Dtype alpha, const Dtype* A,long long int strideA, const Dtype* B,long long int strideB, const Dtype beta,
+    Dtype* C,long long int strideC,int batchCount);
+template <typename Dtype>
 void caffe_cpu_gemm(const CBLAS_TRANSPOSE TransA,
     const CBLAS_TRANSPOSE TransB, const int M, const int N, const int K,
     const Dtype alpha, const Dtype* A, const Dtype* B, const Dtype beta,

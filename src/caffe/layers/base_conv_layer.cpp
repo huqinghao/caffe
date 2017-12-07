@@ -5,7 +5,7 @@
 #include "caffe/layers/base_conv_layer.hpp"
 #include "caffe/util/im2col.hpp"
 #include "caffe/util/math_functions.hpp"
-
+#include"caffe/util/benchmark.hpp"
 namespace caffe {
 
 template <typename Dtype>
@@ -180,6 +180,14 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   weight_offset_ = conv_out_channels_ * kernel_dim_ / group_;
   // Propagate gradients to the parameters (as directed by backward pass).
   this->param_propagate_down_.resize(this->blobs_.size(), true);
+  if(group_==conv_out_channels_)
+  
+  {
+    //vector<int>array_shape_(1,group_);
+    //this->const_ptr_Aarray_.Reshape(array_shape_);
+    //this->const_ptr_Barray_.Reshape(array_shape_);
+    //this->ptr_Carray_.Reshape(array_shape_);
+  }
 }
 
 template <typename Dtype>
@@ -286,15 +294,22 @@ void BaseConvolutionLayer<Dtype>::backward_cpu_gemm(const Dtype* output,
   if (is_1x1_) {
     col_buff = input;
   }
+
+  //Timer timer;
+  //timer.Start();
   for (int g = 0; g < group_; ++g) {
     caffe_cpu_gemm<Dtype>(CblasTrans, CblasNoTrans, kernel_dim_,
         conv_out_spatial_dim_, conv_out_channels_ / group_,
         (Dtype)1., weights + weight_offset_ * g, output + output_offset_ * g,
         (Dtype)0., col_buff + col_offset_ * g);
   }
+
+  //LOG(INFO)<<"time for base conv1:"<<timer.MicroSeconds();
+  //      timer.Start();
   if (!is_1x1_) {
     conv_col2im_cpu(col_buff, input);
   }
+  //LOG(INFO)<<"time for base conv2:"<<timer.MicroSeconds();
 }
 
 template <typename Dtype>
@@ -332,12 +347,23 @@ void BaseConvolutionLayer<Dtype>::forward_gpu_gemm(const Dtype* input,
     }
     col_buff = col_buffer_.gpu_data();
   }
-  for (int g = 0; g < group_; ++g) {
+
+  if(conv_out_channels_==group_)
+  {  
+    caffe_gpu_gemm_strided_batched(CblasNoTrans, CblasNoTrans, conv_out_channels_ /
+        group_, conv_out_spatial_dim_, kernel_dim_,
+        (Dtype)1.,weights,weight_offset_,col_buff,col_offset_,
+        (Dtype)0.,output,output_offset_,group_ );
+  }
+  else
+  {     
+    for (int g = 0; g < group_; ++g) {
     caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, conv_out_channels_ /
         group_, conv_out_spatial_dim_, kernel_dim_,
         (Dtype)1., weights + weight_offset_ * g, col_buff + col_offset_ * g,
         (Dtype)0., output + output_offset_ * g);
-  }
+     }
+ }
 }
 
 template <typename Dtype>
@@ -355,12 +381,24 @@ void BaseConvolutionLayer<Dtype>::backward_gpu_gemm(const Dtype* output,
   if (is_1x1_) {
     col_buff = input;
   }
-  for (int g = 0; g < group_; ++g) {
+  if(conv_out_channels_==group_)
+  //if(0)
+  {
+    caffe_gpu_gemm_strided_batched(CblasTrans, CblasNoTrans, kernel_dim_,conv_out_spatial_dim_,conv_out_channels_ /
+        group_, 
+        (Dtype)1.,weights,weight_offset_,output,output_offset_,(Dtype)0.,col_buff,col_offset_,group_ );
+    //caffe_gpu_batch_gevv(group_,kernel_dim_,conv_out_spatial_dim_,(Dtype)1.,weights,output,(Dtype)0.,col_buff);    
+  }
+  else
+  {
+    for (int g = 0; g < group_; ++g) {
     caffe_gpu_gemm<Dtype>(CblasTrans, CblasNoTrans, kernel_dim_,
         conv_out_spatial_dim_, conv_out_channels_ / group_,
         (Dtype)1., weights + weight_offset_ * g, output + output_offset_ * g,
         (Dtype)0., col_buff + col_offset_ * g);
+    }
   }
+  
   if (!is_1x1_) {
     conv_col2im_gpu(col_buff, input);
   }
@@ -374,12 +412,25 @@ void BaseConvolutionLayer<Dtype>::weight_gpu_gemm(const Dtype* input,
     conv_im2col_gpu(input, col_buffer_.mutable_gpu_data());
     col_buff = col_buffer_.gpu_data();
   }
+  if(conv_out_channels_==group_)
+  {
+    caffe_gpu_gemm_strided_batched<Dtype>(CblasNoTrans, CblasTrans, conv_out_channels_ / group_,
+        kernel_dim_, conv_out_spatial_dim_,
+        (Dtype)1., output , output_offset_, col_buff , col_offset_ ,
+        (Dtype)1., weights , weight_offset_,group_);
+  }
+  else
+  {     
   for (int g = 0; g < group_; ++g) {
     caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasTrans, conv_out_channels_ / group_,
         kernel_dim_, conv_out_spatial_dim_,
         (Dtype)1., output + output_offset_ * g, col_buff + col_offset_ * g,
         (Dtype)1., weights + weight_offset_ * g);
   }
+
+
+ }
+  
 }
 
 template <typename Dtype>
